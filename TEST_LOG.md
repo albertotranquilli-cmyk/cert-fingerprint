@@ -20,3 +20,5 @@ both workflow files cleanly. No tabs, no odd indentation, no CRLF.
 fetch.yml run should execute fetch_ct.py (will fail on crt.sh connectivity from this
 environment if crt.sh is down/filtered — that is a data-source issue, not a workflow issue)
 and then parse_ct.py + commit results/.
+
+2026-10-05 run 37295539652 conclusion=failure: step commit results exit 1 — `git push` rejected `main -> main (fetch first)`; remote has commits absent from the runner checkout (local commit d62d74b created results/SUMMARY.md and results/daily_counts.json, not pushed).
