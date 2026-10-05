@@ -61,7 +61,6 @@ def main():
             try:
                 b = get(url)
                 open(path, "wb").write(b)
-                # sanity: must be JSON array
                 data = json.loads(b)
                 print(f"  -> {len(data)} entries, {len(b)/1e6:.1f} MB")
                 break

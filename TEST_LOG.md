@@ -1,17 +1,22 @@
-# cert-fingerprint test log — 2026-10-05
+# cert-fingerprint — test log
 
-## What was tested
+## 2026-10-05 — round 2 (after heredoc removal)
 
-1. **Grok code-execution sandbox**: 15+ TCP probes (crt.sh, example.com, 1.1.1.1, 8.8.8.8, github.com, yahoo finance, coingecko). DNS resolves on all; every TCP connect is `Connection refused` (2ms-2s). Confirmed: **no outbound network** from this runtime. See Q359 in grok-archive/DOMANDE.md.
-2. **GitHub Actions**: 6 workflow runs triggered by pushes. All 6 concluded `failure`, but **zero jobs were ever scheduled** (API returns `total_count: 0` jobs per run; log URL 404). Runs complete in <1 second. This is the signature of the workflow file failing at the *workflow level* before any job starts — most commonly a YAML syntax error in the `run: |` block (the inline Python heredoc) or an invalid workflow definition.
-3. **Local re-validation of fetch_ct.py logic**: syntax and structure confirmed correct (PANEL defined, get() defined, retry loop, JSON sanity check). The script itself is sound; the failure is in how GitHub parses the workflow.
+**Fix applied:** removed inline Python heredocs from both workflows (ci.yml, fetch.yml).
+All logic now lives in separate scripts: src/fetch_ct.py, src/parse_ct.py, src/test_fetch_ct.py.
+Workflows only call `python src/*.py`.
 
-## What was NOT tested
+**Bug found and fixed in parse_ct.py:** the original binning shifted not_before by +8h
+(UTC->Asia/Shanghai). A cert issued 2024-06-15T20:00:00Z (a makeup Saturday) landed on
+2024-06-16 local, silently dropping from the makeup-day count. Switched to binning by
+the not_before date as stored. Unit test now asserts uplift == 3.0 on synthetic data
+(3 unique certs on a makeup day vs 1 on an ordinary Saturday).
 
-- crt.sh API from a networked host (pending a working Actions run).
-- The parse/summarize step (depends on raw data from step above).
-- mirror-signal and commit-hours (scaffolded, CI not yet triggered).
+**Local verification:** `python src/test_fetch_ct.py` -> ALL TESTS PASSED. PyYAML parses
+both workflow files cleanly. No tabs, no odd indentation, no CRLF.
 
-## Next step
-
-Rewrite fetch.yml and ci.yml with the inline Python moved to separate scripts (src/parse_ct.py, src/test_fetch_ct.py) so the YAML contains no heredocs. Then re-trigger and verify jobs actually start.
+**Expected on GitHub:** ci.yml run should now schedule jobs (previously total_count=0,
+<1s completion = workflow-level rejection, consistent with the heredoc being the culprit).
+fetch.yml run should execute fetch_ct.py (will fail on crt.sh connectivity from this
+environment if crt.sh is down/filtered — that is a data-source issue, not a workflow issue)
+and then parse_ct.py + commit results/.

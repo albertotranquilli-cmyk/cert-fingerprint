@@ -5,7 +5,6 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # every Monday 06:00 UTC — re-run fetch to catch new certs
     - cron: '0 6 * * 1'
 
 jobs:
@@ -17,13 +16,6 @@ jobs:
         with:
           python-version: '3.12'
       - name: syntax check
-        run: python -m py_compile src/fetch_ct.py
-      - name: unit test templates/parsing (no network)
-        run: |
-          python - <<'PY'
-import ast, pathlib
-src = pathlib.Path('src/fetch_ct.py').read_text()
-# must define PANEL and get()
-assert 'PANEL' in src and 'def get(' in src
-print('fetch_ct.py: OK')
-PY
+        run: python -m py_compile src/fetch_ct.py src/parse_ct.py src/test_fetch_ct.py
+      - name: unit tests (no network)
+        run: python src/test_fetch_ct.py
