@@ -1,18 +1,19 @@
-# cert-fingerprint — stato al 2026-10-05
+# cert-fingerprint — stato al 2026-10-05 (post-fix)
 
-## Stato attuale
+## Fix applicati oggi
 
-- **CI**: verde. Run #7 success (syntax check + unit tests, uplift 3.0 su dati sintetici).
-- **Fetch run #5**: in corso (workflow_dispatch, avviato 10:16 UTC). Scarica CT log di 18 domini via crt.sh. Durata attesa: ~2 ore.
-- **results/SUMMARY.md**: non ancora presente — il fetch non ha ancora prodotto output.
-- **PAPER.md**: bozza strutturata con abstract, metodo, red team (7 attacchi), limiti dichiarati. Sezione risultati in attesa dei numeri reali.
+1. **fetch.yml**: aggiunto `timeout-minutes: 360` — il workflow non viene più ucciso a metà download.
+2. **fetch_ct.py**: contatore ok/fail, exit code 1 se TUTTI i domini falliscono (il workflow fallisce davvero invece di sembrare riuscito), log con flush per vedere il progresso in tempo reale.
+3. **Automazione cert-fetch-weekly**: riscritta — niente più "ripollo dopo". Ora: se il run è in corso, aspetta e ripolla fino a completamento (max 12 tentativi, 10 min tra uno e l'altro = 2 ore). Se fallisce, legge i log e documenta l'errore esatto. Se riesce, aggiorna il README con i numeri.
+
+## Stato
+
+- CI: verde (run #7).
+- Fetch run #5: in corso con il vecchio workflow (senza timeout). Se fallisce per timeout, il nuovo workflow è già pronto e il bot lo ritriggherà.
+- results/SUMMARY.md: non ancora presente.
 
 ## Prossimi passi
 
-1. Automazione cert-fetch-weekly (lunedì 08:00 Europe/Rome) verifica il run e aggiorna il README con i numeri.
-2. Se il run fallisce: il bot documenta l'errore esatto in TEST_LOG.md.
-3. Cross-correlazione con i s di tiaoxiu-signal: il passo che rende il paper pubblicabile su arXiv.
-
-## Nota onesta
-
-Il valore monetizzabile arriva solo con numeri reali. Il codice da solo non vende. Il primo numero vero è la priorità assoluta.
+1. Il bot cert-fetch-weekly (domani 08:00 o run_now) verifica il run e aggiorna.
+2. Cross-correlazione con i s di tiaoxiu-signal.
+3. Post X: testo pronto in tiaoxiu-signal/POST.md — va incollato manualmente (nessun connettore X organico).

@@ -42,7 +42,7 @@ PANEL = {
 SLEEP = 5.0  # seconds between queries
 
 
-def get(url, timeout=60):
+def get(url, timeout=120):
     req = urllib.request.Request(url, headers={"User-Agent": "cert-fingerprint/0.1 (research)"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
@@ -50,29 +50,40 @@ def get(url, timeout=60):
 
 def main():
     os.makedirs(RAW, exist_ok=True)
+    ok = fail = 0
     for domain, region in PANEL.items():
         path = os.path.join(RAW, f"{domain}.json")
         if os.path.exists(path) and os.path.getsize(path) > 100:
-            print(f"skip  {domain} ({os.path.getsize(path)/1e6:.1f} MB)")
+            print(f"skip  {domain} ({os.path.getsize(path)/1e6:.1f} MB)", flush=True)
+            ok += 1
             continue
         url = BASE.format(domain=domain)
         print(f"get   {domain} ({region}) ...", flush=True)
+        success = False
         for attempt in range(4):
             try:
                 b = get(url)
                 open(path, "wb").write(b)
                 data = json.loads(b)
-                print(f"  -> {len(data)} entries, {len(b)/1e6:.1f} MB")
+                print(f"  -> {len(data)} entries, {len(b)/1e6:.1f} MB", flush=True)
+                ok += 1
+                success = True
                 break
             except urllib.error.HTTPError as e:
-                print(f"  HTTP {e.code}, retry {attempt+1}/4 in {SLEEP*(attempt+1):.0f}s")
+                print(f"  HTTP {e.code}, retry {attempt+1}/4 in {SLEEP*(attempt+1):.0f}s", flush=True)
                 time.sleep(SLEEP * (attempt + 1))
             except Exception as e:
-                print(f"  ERR {type(e).__name__}: {e}, retry {attempt+1}/4")
+                print(f"  ERR {type(e).__name__}: {e}, retry {attempt+1}/4", flush=True)
                 time.sleep(SLEEP * (attempt + 1))
+        if not success:
+            fail += 1
+            print(f"  FAILED {domain} after 4 attempts", flush=True)
         time.sleep(SLEEP)
-    print("done")
+    print(f"done: {ok} ok, {fail} failed", flush=True)
+    if fail == len(PANEL):
+        print("ALL DOMAINS FAILED", file=sys.stderr, flush=True)
+        sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__ == "main__":
     main()
