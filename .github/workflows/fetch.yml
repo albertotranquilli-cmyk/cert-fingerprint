@@ -1,0 +1,106 @@
+name: fetch
+on:
+  schedule:
+    # every Monday 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: fetch CT data
+        run: python src/fetch_ct.py
+      - name: parse and summarize
+        run: |
+          python - <<'PY'
+import json, os, datetime as dt
+from collections import defaultdict
+
+RAW = 'data/raw'
+OUT = 'results'
+os.makedirs(OUT, exist_ok=True)
+
+MAKEUP = {'2024-06-15','2024-09-14','2024-10-12','2025-01-26','2025-02-08','2025-05-05'}
+
+def china_day(ts):
+    try:
+        t = dt.datetime.fromisoformat(ts.replace('Z','+00:00'))
+        return (t + dt.timedelta(hours=8)).date().isoformat()
+    except Exception:
+        return None
+
+summary = {'domains': {}, 'fetched_at': dt.datetime.now(dt.timezone.utc).isoformat()}
+
+for fn in sorted(os.listdir(RAW)) if os.path.isdir(RAW) else []:
+    if not fn.endswith('.json'):
+        continue
+    domain = fn[:-5]
+    path = os.path.join(RAW, fn)
+    try:
+        data = json.load(open(path))
+    except Exception as e:
+        summary['domains'][domain] = {'error': str(e)}
+        continue
+    if not isinstance(data, list):
+        summary['domains'][domain] = {'error': 'not a list'}
+        continue
+    seen = set(); days = defaultdict(int)
+    for e in data:
+        ser = e.get('serial_number') or e.get('id')
+        if ser in seen:
+            continue
+        seen.add(ser)
+        d = china_day(e.get('not_before') or '')
+        if d:
+            days[d] += 1
+    vals = [days[d] for d in MAKEUP if d in days]
+    if vals:
+        import statistics
+        makeup_med = statistics.median(vals)
+        base = []
+        for d, c in days.items():
+            if d in MAKEUP:
+                continue
+            try:
+                wd = dt.date.fromisoformat(d).weekday()
+            except Exception:
+                continue
+            if wd >= 5:
+                base.append(c)
+        base_med = statistics.median(base) if base else 0
+        uplift = (makeup_med / base_med) if base_med > 0 else None
+    else:
+        makeup_med = base_med = uplift = None
+    summary['domains'][domain] = {
+        'unique_certs': len(seen),
+        'days_with_data': len(days),
+        'makeup_median_daily': makeup_med,
+        'ordinary_weekend_median_daily': base_med,
+        'makeup_uplift': round(uplift, 3) if uplift is not None else None,
+    }
+
+json.dump(summary, open(os.path.join(OUT,'daily_counts.json'),'w'), indent=1)
+
+lines = ['# cert-fingerprint — results summary', '', f"fetched_at: {summary['fetched_at']}", '', '| domain | unique certs | makeup-day median/day | weekend median/day | uplift |', '|---|---:|---:|---:|---:|']
+for dom, s in summary['domains'].items():
+    if 'error' in s:
+        lines.append(f"| {dom} | ERR {s['error']} | | | |")
+    else:
+        lines.append(f"| {dom} | {s['unique_certs']} | {s['makeup_median_daily']} | {s['ordinary_weekend_median_daily']} | {s['makeup_uplift']} |")
+open(os.path.join(OUT,'SUMMARY.md'),'w').write('\n'.join(lines)+'\n')
+print(open(os.path.join(OUT,'SUMMARY.md')).read())
+PY
+      - name: commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results/
+          git diff --cached --quiet && echo "no changes" || git commit -m "results: CT fetch $(date -u +%Y-%m-%d)"
+          git push
