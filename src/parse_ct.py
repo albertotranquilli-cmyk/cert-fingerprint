@@ -77,7 +77,7 @@ def main():
                 "ordinary_weekend_median_daily": base_med,
                 "makeup_uplift": round(uplift, 3) if uplift is not None else None,
             }
-    json.dump(summary, open(os.path.join(OUT, "daily_counts.json"), "w"), indent=1)
+    json.dump(summary, open(os.path.join(OUT, "daily_counts.json"), "w"), indent=1, allow_nan=False)
     lines = ["# cert-fingerprint — results summary", "", "fetched_at: " + summary["fetched_at"], "",
              "binning: not_before date as stored", ""]
     if "error" in summary:
@@ -92,6 +92,8 @@ def main():
             lines.append("| " + dom + " | " + str(s["unique_certs"]) + " | " + str(s["makeup_median_daily"]) + " | " + str(s["ordinary_weekend_median_daily"]) + " | " + str(s["makeup_uplift"]) + " |")
     open(os.path.join(OUT, "SUMMARY.md"), "w").write("\n".join(lines) + "\n")
     print(open(os.path.join(OUT, "SUMMARY.md")).read())
+    if "error" in summary:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
