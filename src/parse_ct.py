@@ -7,7 +7,7 @@ late-UTC issuances. Dedupes by serial number.
 import json, os, datetime as dt
 from collections import defaultdict
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+ROOT = os.environ.get("CERT_FINGERPRINT_ROOT", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 RAW = os.path.join(ROOT, "data", "raw")
 OUT = os.path.join(ROOT, "results")
 
