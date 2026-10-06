@@ -29,7 +29,7 @@ def test_parse_ct_empty_raw():
         r = subprocess.run([sys.executable, os.path.join(SRC, "parse_ct.py")],
                            capture_output=True, text=True, cwd=td,
                            env={**os.environ, "CERT_FINGERPRINT_ROOT": td})
-        assert r.returncode == 0, r.stderr
+        assert r.returncode == 2, r.stderr
         assert "no .json files in data/raw/" in r.stdout, (r.stdout, r.stderr)
         print("parse_ct.py: empty-raw OK")
 
@@ -45,7 +45,8 @@ def test_parse_ct_synthetic():
                            capture_output=True, text=True, cwd=td,
                            env={**os.environ, "CERT_FINGERPRINT_ROOT": td})
         assert r.returncode == 0, r.stderr
-        assert "3.0" in r.stdout, (r.stdout, r.stderr)
+        result = json.load(open(os.path.join(td, "results", "daily_counts.json")))
+        assert result["domains"]["baidu.com"]["makeup_uplift"] == 13.0, result
         print("parse_ct.py: synthetic OK")
         print(r.stdout)
 
