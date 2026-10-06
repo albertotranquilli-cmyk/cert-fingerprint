@@ -24,10 +24,13 @@ def test_bin_day():
 
 def test_parse_ct_empty_raw():
     with tempfile.TemporaryDirectory() as td:
+        raw = os.path.join(td, "data", "raw")
+        os.makedirs(raw)
         r = subprocess.run([sys.executable, os.path.join(SRC, "parse_ct.py")],
-                           capture_output=True, text=True, cwd=td, env={**os.environ, "CERT_FINGERPRINT_ROOT": td})
-        assert r.returncode == 0
-        assert "no .json files" in r.stdout
+                           capture_output=True, text=True, cwd=td,
+                           env={**os.environ, "CERT_FINGERPRINT_ROOT": td})
+        assert r.returncode == 0, r.stderr
+        assert "no .json files in data/raw/" in r.stdout, (r.stdout, r.stderr)
         print("parse_ct.py: empty-raw OK")
 
 
@@ -39,9 +42,10 @@ def test_parse_ct_synthetic():
         synth += [{"serial_number": f"w{i}", "not_before": f"2024-06-1{5+i}T{i%24:02d}:00:00"} for i in range(4)]
         json.dump(synth, open(os.path.join(raw, "baidu.com.json"), "w"))
         r = subprocess.run([sys.executable, os.path.join(SRC, "parse_ct.py")],
-                           capture_output=True, text=True, cwd=td)
-        assert r.returncode == 0
-        assert "3.0" in r.stdout
+                           capture_output=True, text=True, cwd=td,
+                           env={**os.environ, "CERT_FINGERPRINT_ROOT": td})
+        assert r.returncode == 0, r.stderr
+        assert "3.0" in r.stdout, (r.stdout, r.stderr)
         print("parse_ct.py: synthetic OK")
         print(r.stdout)
 
