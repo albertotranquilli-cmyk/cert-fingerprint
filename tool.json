@@ -1,0 +1,29 @@
+{
+  "id": "cert-fingerprint",
+  "schema": 1,
+  "status": "repair_required",
+  "purpose": "Reproducible Certificate Transparency timing experiment",
+  "entrypoints": {
+    "test": "python src/test_fetch_ct.py",
+    "parse": "python src/parse_ct.py"
+  },
+  "machine_outputs": [
+    "results/daily_counts.json"
+  ],
+  "network": {
+    "test": false,
+    "fetch": true
+  },
+  "agent_contract": {
+    "safe_autonomous": [
+      "test",
+      "parse_existing_data"
+    ],
+    "human_gate": [
+      "publish_claim"
+    ],
+    "forbidden": [
+      "claim_result_without_results_artifact"
+    ]
+  }
+}
