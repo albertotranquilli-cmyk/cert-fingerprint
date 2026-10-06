@@ -25,7 +25,7 @@ def test_bin_day():
 def test_parse_ct_empty_raw():
     with tempfile.TemporaryDirectory() as td:
         r = subprocess.run([sys.executable, os.path.join(SRC, "parse_ct.py")],
-                           capture_output=True, text=True, cwd=td)
+                           capture_output=True, text=True, cwd=td, env={**os.environ, "CERT_FINGERPRINT_ROOT": td})
         assert r.returncode == 0
         assert "no .json files" in r.stdout
         print("parse_ct.py: empty-raw OK")
