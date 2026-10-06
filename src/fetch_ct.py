@@ -53,18 +53,31 @@ def main():
     ok = fail = 0
     for domain, region in PANEL.items():
         path = os.path.join(RAW, f"{domain}.json")
-        if os.path.exists(path) and os.path.getsize(path) > 100:
-            print(f"skip  {domain} ({os.path.getsize(path)/1e6:.1f} MB)", flush=True)
-            ok += 1
-            continue
+        if os.path.exists(path):
+            try:
+                cached = json.load(open(path))
+                if isinstance(cached, list):
+                    print(f"skip  {domain} ({os.path.getsize(path)/1e6:.1f} MB, validated)", flush=True)
+                    ok += 1
+                    continue
+            except Exception:
+                pass
+            print(f"invalid cache {domain}; refetching", flush=True)
         url = BASE.format(domain=domain)
         print(f"get   {domain} ({region}) ...", flush=True)
         success = False
         for attempt in range(4):
             try:
                 b = get(url)
-                open(path, "wb").write(b)
                 data = json.loads(b)
+                if not isinstance(data, list):
+                    raise ValueError("crt.sh response is not a JSON list")
+                tmp = path + ".tmp"
+                with open(tmp, "wb") as fh:
+                    fh.write(b)
+                    fh.flush()
+                    os.fsync(fh.fileno())
+                os.replace(tmp, path)
                 print(f"  -> {len(data)} entries, {len(b)/1e6:.1f} MB", flush=True)
                 ok += 1
                 success = True
@@ -80,8 +93,8 @@ def main():
             print(f"  FAILED {domain} after 4 attempts", flush=True)
         time.sleep(SLEEP)
     print(f"done: {ok} ok, {fail} failed", flush=True)
-    if fail == len(PANEL):
-        print("ALL DOMAINS FAILED", file=sys.stderr, flush=True)
+    if fail:
+        print(f"FETCH_INCOMPLETE: {fail}/{len(PANEL)} domains failed (cause may be environment or upstream)", file=sys.stderr, flush=True)
         sys.exit(1)
 
 
