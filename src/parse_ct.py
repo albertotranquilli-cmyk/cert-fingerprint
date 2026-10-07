@@ -7,11 +7,16 @@ late-UTC issuances. Dedupes by serial number.
 import json, os, datetime as dt
 from collections import defaultdict
 
+from ct_validate import InvalidCTData, load_records
+from fetch_ct import PANEL
+
 ROOT = os.environ.get("CERT_FINGERPRINT_ROOT", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 RAW = os.path.join(ROOT, "data", "raw")
 OUT = os.path.join(ROOT, "results")
 
-MAKEUP = {"2024-06-15", "2024-09-14", "2024-10-12", "2025-01-26", "2025-02-08", "2025-05-05"}
+# Official make-up workdays only (State Council notices). 2024-06-15 and 2025-05-05
+# were removed: neither is a make-up workday (2025-05-05 is a Labor Day holiday).
+MAKEUP = {"2024-09-14", "2024-10-12", "2025-01-26", "2025-02-08"}
 
 
 def bin_day(ts):
@@ -35,12 +40,10 @@ def main():
             domain = fn[:-5]
             path = os.path.join(RAW, fn)
             try:
-                data = json.load(open(path))
-            except Exception as e:
-                summary["domains"][domain] = {"error": str(e)}
-                continue
-            if not isinstance(data, list):
-                summary["domains"][domain] = {"error": "not a list"}
+                with open(path, "rb") as fh:
+                    data = load_records(fh.read())
+            except (InvalidCTData, ValueError, OSError) as e:
+                summary["domains"][domain] = {"error": f"{type(e).__name__}: {e}"}
                 continue
             seen = set()
             days = defaultdict(int)
@@ -77,6 +80,14 @@ def main():
                 "ordinary_weekend_median_daily": base_med,
                 "makeup_uplift": round(uplift, 3) if uplift is not None else None,
             }
+    if "error" not in summary:
+        missing = sorted(set(PANEL) - set(summary["domains"]))
+        invalid = sorted(d for d, s in summary["domains"].items() if "error" in s)
+        if missing:
+            summary["missing_domains"] = missing
+        if missing or invalid:
+            summary["error"] = (f"incomplete or invalid input: {len(invalid)} invalid, "
+                                f"{len(missing)}/{len(PANEL)} panel domains missing")
     json.dump(summary, open(os.path.join(OUT, "daily_counts.json"), "w"), indent=1, allow_nan=False)
     lines = ["# cert-fingerprint — results summary", "", "fetched_at: " + summary["fetched_at"], "",
              "binning: not_before date as stored", ""]

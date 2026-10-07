@@ -8,6 +8,8 @@ Usage: python src/fetch_ct.py
 """
 import json, os, sys, time, urllib.request, urllib.error
 
+from ct_validate import InvalidCTData, load_records
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RAW = os.path.join(ROOT, "data", "raw")
 BASE = "https://crt.sh/?q={domain}&output=json"
@@ -55,27 +57,20 @@ def main():
         path = os.path.join(RAW, f"{domain}.json")
         if os.path.exists(path):
             try:
-                cached = json.load(open(path))
-                if isinstance(cached, list) and all(
-                    isinstance(row, dict) and isinstance(row.get("not_before"), str)
-                    and bool(row.get("serial_number") or row.get("id"))
-                    for row in cached
-                ):
-                    print(f"skip  {domain} ({os.path.getsize(path)/1e6:.1f} MB, validated)", flush=True)
-                    ok += 1
-                    continue
-            except Exception:
-                pass
-            print(f"invalid cache {domain}; refetching", flush=True)
+                with open(path, "rb") as fh:
+                    load_records(fh.read())
+                print(f"skip  {domain} ({os.path.getsize(path)/1e6:.1f} MB, validated)", flush=True)
+                ok += 1
+                continue
+            except (InvalidCTData, ValueError, OSError) as e:
+                print(f"invalid cache {domain} ({type(e).__name__}: {e}); refetching", flush=True)
         url = BASE.format(domain=domain)
         print(f"get   {domain} ({region}) ...", flush=True)
         success = False
         for attempt in range(4):
             try:
                 b = get(url)
-                data = json.loads(b)
-                if not isinstance(data, list):
-                    raise ValueError("crt.sh response is not a JSON list")
+                data = load_records(b)  # raises on malformed/empty; never written to cache
                 tmp = path + ".tmp"
                 with open(tmp, "wb") as fh:
                     fh.write(b)
