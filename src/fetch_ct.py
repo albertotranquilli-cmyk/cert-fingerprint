@@ -56,7 +56,11 @@ def main():
         if os.path.exists(path):
             try:
                 cached = json.load(open(path))
-                if isinstance(cached, list):
+                if isinstance(cached, list) and all(
+                    isinstance(row, dict) and isinstance(row.get("not_before"), str)
+                    and bool(row.get("serial_number") or row.get("id"))
+                    for row in cached
+                ):
                     print(f"skip  {domain} ({os.path.getsize(path)/1e6:.1f} MB, validated)", flush=True)
                     ok += 1
                     continue
