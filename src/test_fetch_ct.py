@@ -38,9 +38,17 @@ def test_parse_ct_synthetic():
     with tempfile.TemporaryDirectory() as td:
         raw = os.path.join(td, "data", "raw")
         os.makedirs(raw)
-        synth = [{"serial_number": f"s{i}", "not_before": f"2024-06-15T{i%24:02d}:00:00"} for i in range(12)]
-        synth += [{"serial_number": f"w{i}", "not_before": f"2024-06-1{5+i}T{i%24:02d}:00:00"} for i in range(4)]
+        # 2024-09-14 (Sat) is an official make-up workday; 2024-06-15 is not.
+        # Hand-derived: 13 certs on 2024-09-14, 1 on Sun 2024-09-15, Mon/Tue ignored -> 13/1 = 13.0
+        synth = [{"serial_number": f"s{i}", "not_before": f"2024-09-14T{i%24:02d}:00:00"} for i in range(12)]
+        synth += [{"serial_number": f"w{i}", "not_before": f"2024-09-1{4+i}T{i%24:02d}:00:00"} for i in range(4)]
         json.dump(synth, open(os.path.join(raw, "baidu.com.json"), "w"))
+        # Full panel present so the run is not a partial-input run.
+        from fetch_ct import PANEL
+        for dom in PANEL:
+            if dom != "baidu.com":
+                json.dump([{"id": 1, "serial_number": "01", "not_before": "2024-09-07T10:00:00"}],
+                          open(os.path.join(raw, dom + ".json"), "w"))
         r = subprocess.run([sys.executable, os.path.join(SRC, "parse_ct.py")],
                            capture_output=True, text=True, cwd=td,
                            env={**os.environ, "CERT_FINGERPRINT_ROOT": td})
@@ -56,4 +64,11 @@ if __name__ == "__main__":
     test_bin_day()
     test_parse_ct_empty_raw()
     test_parse_ct_synthetic()
+    # Fail-closed regressions (PR #1 audit). Run from this entrypoint so the
+    # existing CI step executes them without a workflow change.
+    sys.stdout.flush()
+    r = subprocess.run([sys.executable, os.path.join(SRC, "test_regressions.py")])
+    if r.returncode != 0:
+        print("REGRESSION TESTS FAILED")
+        sys.exit(r.returncode)
     print("ALL TESTS PASSED")
